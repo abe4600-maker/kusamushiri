@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>むしむし！くさむしり</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #e8f5e9;
+      font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-container {
+      width: 100%;
+      max-width: 450px;
+      height: 100vh;
+      max-height: 750px;
+      background: linear-gradient(#b3e5fc 30%, #a5d6a7 30%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ヘッダー情報 */
+    #header {
+      height: 70px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      background-color: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(4px);
+      z-index: 10;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .info-box {
+      font-size: 20px;
+      background: #fff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    /* フィールド */
+    #field {
+      flex: 1;
+      position: relative;
+      cursor: pointer;
+    }
+
+    /* オリジナルキャラクター（モコ） */
+    #character {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90px;
+      height: 90px;
+      transition: transform 0.1s ease, left 0.15s ease, bottom 0.15s ease;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .character-body {
+      width: 80px;
+      height: 70px;
+      background: #ffffff;
+      border: 3px solid #424242;
+      border-radius: 50% 50% 45% 45%;
+      position: absolute;
+      bottom: 0;
+      left: 5px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    /* 耳 */
+    .ear {
+      width: 18px;
+      height: 35px;
+      background: #ffffff;
+      border: 3px solid #424242;
+      border-radius: 10px 10px 0 0;
+      position: absolute;
+      top: -22px;
+    }
+    .ear.left { left: 18px; transform: rotate(-10deg); }
+    .ear.right { right: 18px; transform: rotate(10deg); }
+    .ear-inner {
+      width: 8px;
+      height: 20px;
+      background: #ffcdd2;
+      border-radius: 5px;
+      margin: 4px auto 0;
+    }
+
+    /* 顔 */
+    .eye {
+      width: 8px;
+      height: 8px;
+      background: #424242;
+      border-radius: 50%;
+      position: absolute;
+      top: 25px;
+    }
+    .eye.left { left: 22px; }
+    .eye.right { right: 22px; }
+    
+    .cheek {
+      width: 12px;
+      height: 8px;
+      background: #ffab91;
+      border-radius: 50%;
+      position: absolute;
+      top: 32px;
+      opacity: 0.8;
+    }
+    .cheek.left { left: 14px; }
+    .cheek.right { right: 14px; }
+
+    .mouth {
+      width: 10px;
+      height: 6px;
+      border-bottom: 3px solid #424242;
+      border-radius: 0 0 50% 50%;
+      position: absolute;
+      top: 32px;
+      left: 35px;
+    }
+
+    /* アニメーション状態 */
+    .pulling {
+      transform: translateX(-50%) scale(0.95, 1.05) !important;
+    }
+    .oops {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(-50%) rotate(0deg); }
+      20% { transform: translateX(-55%) rotate(-8deg); }
+      40% { transform: translateX(-45%) rotate(8deg); }
+      60% { transform: translateX(-53%) rotate(-5deg); }
+      80% { transform: translateX(-47%) rotate(5deg); }
+    }
+
+    /* オブジェクト（草・石） */
+    .target {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: transform 0.1s ease, opacity 0.3s ease;
+    }
+    .target:active {
+      transform: translate(-50%, -50%) scale(0.85);
+    }
+
+    /* エフェクトテキスト */
+    .effect-text {
+      position: absolute;
+      font-weight: bold;
+      font-size: 22px;
+      pointer-events: none;
+      animation: floatUp 0.6s forwards ease-out;
+      z-index: 20;
+      text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
+      50% { transform: translate(-50%, -30px) scale(1.2); }
+      100% { opacity: 0; transform: translate(-50%, -50px) scale(1); }
+    }
+
+    /* コンボ表示 */
+    #combo-display {
+      position: absolute;
+      top: 85px;
+      right: 20px;
+      font-size: 24px;
+      font-weight: 900;
+      color: #ff6f00;
+      text-shadow: 2px 2px 0 #fff;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.1s;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* 画面オーバーレイ (スタート / リザルト) */
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.94);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 30;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .title {
+      font-size: 32px;
+      color: #2e7d32;
+      margin-bottom: 10px;
+      font-weight: bold;
+      text-shadow: 2px 2px 0 #c8e6c9;
+    }
+
+    .btn {
+      background-color: #66bb6a;
+      color: white;
+      border: none;
+      padding: 14px 40px;
+      font-size: 22px;
+      font-weight: bold;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #388e3c;
+      margin-top: 20px;
+      transition: transform 0.1s, background-color 0.1s;
+    }
+    .btn:active {
+      transform: translateY(4px);
+      box-shadow: none;
+    }
+
+    /* 結果画面専用の大きな文字表記 */
+    .rank-title {
+      font-size: 24px;
+      color: #555;
+      margin-top: 10px;
+    }
+    .rank-result {
+      font-size: 48px; /* 文字を大きめに設定 */
+      font-weight: 900;
+      color: #d81b60;
+      margin: 10px 0;
+      text-shadow: 2px 2px 0 #f8bbd0;
+    }
+    .rank-result.failed {
+      color: #757575;
+      text-shadow: 2px 2px 0 #e0e0e0;
+    }
+    .score-detail {
+      font-size: 22px;
+      color: #333;
+      margin-bottom: 5px;
+    }
+    .praise-message {
+      font-size: 18px;
+      color: #2e7d32;
+      font-weight: bold;
+      background: #e8f5e9;
+      padding: 8px 16px;
+      border-radius: 15px;
+      margin-top: 10px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <!-- ヘッダー -->
+  <div id="header">
+    <div class="info-box">⏱️ <span id="time">30</span>s</div>
+    <div class="info-box">🌱 <span id="score">0</span>pt</div>
+  </div>
+
+  <!-- コンボ表示 -->
+  <div id="combo-display">2 コンボ！</div>
+
+  <!-- フィールド -->
+  <div id="field">
+    <!-- キャラクター -->
+    <div id="character">
+      <div class="ear left"><div class="ear-inner"></div></div>
+      <div class="ear right"><div class="ear-inner"></div></div>
+      <div class="character-body">
+        <div class="eye left" id="eye-l"></div>
+        <div class="eye right" id="eye-r"></div>
+        <div class="cheek left"></div>
+        <div class="cheek right"></div>
+        <div class="mouth" id="mouth"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- スタート画面 -->
+  <div id="start-screen" class="overlay">
+    <div class="title">むしむし！<br>くさむしり</div>
+    <p style="font-size: 15px; color: #555; line-height: 1.6; text-align: left; background: #fff; padding: 12px; border-radius: 10px; border: 1px solid #c8e6c9;">
+      🎯 <b>検定合格ライン</b><br>
+      ・1級：55 pt 以上<br>
+      ・2級：45 pt 以上<br>
+      ・3級：35 pt 以上<br>
+      ・4級：25 pt 以上<br>
+      ・5級：15 pt 以上<br>
+      ※ 15pt 未満は<b>不合格</b><br><br>
+      ⚠️ 🪨<b>石</b>はタップせずに無視してOK！<br>
+      放置した古い草や石は自然に消えます。
+    </p>
+    <button class="btn" id="start-btn">スタート！</button>
+  </div>
+
+  <!-- リザルト画面 -->
+  <div id="result-screen" class="overlay hidden">
+    <div class="score-detail"><span id="final-score">0</span> ポイント！</div>
+    <div class="rank-title">草むしり検定</div>
+    <!-- 大きな文字のランク表記 -->
+    <div class="rank-result" id="rank-display">5級合格</div>
+    <div class="praise-message" id="praise-msg">いっぱい抜けたね！</div>
+    <button class="btn" id="retry-btn">もう一回挑戦</button>
+  </div>
+</div>
+
+<script>
+  // ゲームの状態変数
+  let score = 0;
+  let timeLeft = 30;
+  let gameInterval = null;
+  let spawnInterval = null;
+  let isPlaying = false;
+  let combo = 0;
+  let comboTimer = null;
+
+  // DOM要素
+  const timeEl = document.getElementById('time');
+  const scoreEl = document.getElementById('score');
+  const fieldEl = document.getElementById('field');
+  const characterEl = document.getElementById('character');
+  const eyeL = document.getElementById('eye-l');
+  const eyeR = document.getElementById('eye-r');
+  const mouth = document.getElementById('mouth');
+  const comboEl = document.getElementById('combo-display');
+  
+  const startScreen = document.getElementById('start-screen');
+  const resultScreen = document.getElementById('result-screen');
+  const startBtn = document.getElementById('start-btn');
+  const retryBtn = document.getElementById('retry-btn');
+  const finalScoreEl = document.getElementById('final-score');
+  const rankDisplayEl = document.getElementById('rank-display');
+  const praiseMsgEl = document.getElementById('praise-msg');
+
+  // イベントリスナー
+  startBtn.addEventListener('click', startGame);
+  retryBtn.addEventListener('click', startGame);
+
+  function startGame() {
+    score = 0;
+    timeLeft = 30;
+    combo = 0;
+    isPlaying = true;
+
+    scoreEl.textContent = score;
+    timeEl.textContent = timeLeft;
+
+    startScreen.classList.add('hidden');
+    resultScreen.classList.add('hidden');
+
+    // フィールドをクリア
+    const targets = fieldEl.querySelectorAll('.target');
+    targets.forEach(t => t.remove());
+
+    resetFace();
+
+    // タイマー開始
+    clearInterval(gameInterval);
+    gameInterval = setInterval(() => {
+      timeLeft--;
+      timeEl.textContent = timeLeft;
+      if (timeLeft <= 0) {
+        endGame();
+      }
+    }, 1000);
+
+    // オブジェクト定期生成
+    clearInterval(spawnInterval);
+    spawnInterval = setInterval(createTarget, 350); // 0.35秒ごとに絶え間なく新しい草を生成
+  }
+
+  function createTarget() {
+    if (!isPlaying) return;
+
+    // フィールドに最大7個まで表示
+    const currentTargets = fieldEl.querySelectorAll('.target');
+    if (currentTargets.length >= 7) {
+      return;
+    }
+
+    const target = document.createElement('div');
+    target.className = 'target';
+
+    // 確率設定（石は15%に抑え、草メインに）
+    const rand = Math.random();
+    let type = 'normal';
+
+    if (rand < 0.15) {
+      type = 'stone';  // 石 (15%)
+    } else if (rand < 0.35) {
+      type = 'big';    // 大きな草 (20%)
+    } else if (rand < 0.45) {
+      type = 'clover'; // 四つ葉 (10%)
+    }
+
+    target.dataset.type = type;
+
+    // 見た目
+    if (type === 'normal') {
+      target.innerHTML = '🌱';
+      target.style.fontSize = '45px';
+    } else if (type === 'big') {
+      target.innerHTML = '🌿';
+      target.style.fontSize = '65px';
+      target.dataset.hp = 3;
+    } else if (type === 'clover') {
+      target.innerHTML = '🍀';
+      target.style.fontSize = '50px';
+    } else if (type === 'stone') {
+      target.innerHTML = '🪨';
+      target.style.fontSize = '45px';
+    }
+
+    // 出現位置
+    const fieldWidth = fieldEl.clientWidth - 70;
+    const fieldHeight = fieldEl.clientHeight - 140;
+    const x = Math.random() * fieldWidth + 35;
+    const y = Math.random() * fieldHeight + 35;
+
+    target.style.left = `${x}px`;
+    target.style.top = `${y}px`;
+
+    // 放置された古いオブジェクト（特に石）を自動消去するタイマー (4秒で自然消滅)
+    const autoRemoveTimer = setTimeout(() => {
+      if (target.parentNode) {
+        target.style.opacity = '0';
+        setTimeout(() => target.remove(), 300);
+      }
+    }, 4000);
+
+    // タップイベント
+    target.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      clearTimeout(autoRemoveTimer);
+      handleTargetClick(target, x, y);
+    });
+
+    fieldEl.appendChild(target);
+  }
+
+  function handleTargetClick(target, x, y) {
+    if (!isPlaying) return;
+
+    const type = target.dataset.type;
+
+    // キャラクターの移動
+    characterEl.style.left = `${x}px`;
+    characterEl.style.bottom = `${Math.max(10, fieldEl.clientHeight - y - 80)}px`;
+    characterEl.classList.add('pulling');
+    setTimeout(() => characterEl.classList.remove('pulling'), 150);
+
+    if (type === 'stone') {
+      // 石を叩いたときのペナルティ: 持ち時間 -1秒
+      timeLeft = Math.max(0, timeLeft - 1);
+      timeEl.textContent = timeLeft;
+      combo = 0;
+      updateComboDisplay();
+
+      showEffect(x, y, 'いてっ！ -1秒', '#e53935');
+      makeOopsFace();
+      target.remove();
+
+    } else if (type === 'big') {
+      let hp = parseInt(target.dataset.hp) - 1;
+      target.dataset.hp = hp;
+      
+      target.style.transform = `translate(-50%, -50%) scale(${0.85 + (3 - hp) * 0.1}) rotate(${Math.random() * 20 - 10}deg)`;
+
+      if (hp <= 0) {
+        addScore(3);
+        addCombo();
+        showEffect(x, y, 'スポーン！ +3', '#2e7d32');
+        target.remove();
+      } else {
+        showEffect(x, y, 'ぐぐぐ...', '#8d6e63');
+      }
+
+    } else {
+      const pts = (type === 'clover') ? 5 : 1;
+      const text = (type === 'clover') ? 'ラッキー！ +5' : 'スポッ！ +1';
+      const color = (type === 'clover') ? '#7b1fa2' : '#2e7d32';
+
+      addScore(pts);
+      addCombo();
+      showEffect(x, y, text, color);
+      target.remove();
+    }
+  }
+
+  function addScore(pts) {
+    score += pts;
+    scoreEl.textContent = score;
+  }
+
+  function addCombo() {
+    combo++;
+    updateComboDisplay();
+
+    clearTimeout(comboTimer);
+    // コンボ保持時間は1.2秒に緩和
+    comboTimer = setTimeout(() => {
+      combo = 0;
+      updateComboDisplay();
+    }, 1200);
+  }
+
+  function updateComboDisplay() {
+    if (combo >= 2) {
+      comboEl.textContent = `${combo} コンボ！`;
+      comboEl.style.opacity = '1';
+      comboEl.style.transform = 'scale(1.2)';
+      setTimeout(() => comboEl.style.transform = 'scale(1)', 100);
+    } else {
+      comboEl.style.opacity = '0';
+    }
+  }
+
+  function showEffect(x, y, text, color) {
+    const el = document.createElement('div');
+    el.className = 'effect-text';
+    el.textContent = text;
+    el.style.color = color;
+    el.style.left = `${x}px`;
+    el.style.top = `${y - 20}px`;
+
+    fieldEl.appendChild(el);
+    setTimeout(() => el.remove(), 600);
+  }
+
+  function makeOopsFace() {
+    characterEl.classList.add('oops');
+    eyeL.style.borderRadius = '0';
+    eyeL.style.height = '3px';
+    eyeR.style.borderRadius = '0';
+    eyeR.style.height = '3px';
+    mouth.style.borderRadius = '50% 50% 0 0';
+    mouth.style.borderBottom = 'none';
+    mouth.style.borderTop = '3px solid #424242';
+
+    setTimeout(() => {
+      characterEl.classList.remove('oops');
+      resetFace();
+    }, 500);
+  }
+
+  function resetFace() {
+    eyeL.style.borderRadius = '50%';
+    eyeL.style.height = '8px';
+    eyeR.style.borderRadius = '50%';
+    eyeR.style.height = '8px';
+    mouth.style.borderRadius = '0 0 50% 50%';
+    mouth.style.borderTop = 'none';
+    mouth.style.borderBottom = '3px solid #424242';
+  }
+
+  function endGame() {
+    isPlaying = false;
+    clearInterval(gameInterval);
+    clearInterval(spawnInterval);
+
+    let rank = "不合格";
+    let praiseMsg = "ざんねん！もう一度チャレンジしてみよう";
+    rankDisplayEl.classList.remove('failed');
+
+    // 程よい手ごたえの合格境界線
+    if (score >= 55) {
+      rank = "1級合格";
+      praiseMsg = "伝説の草むしりマスター！すごすぎる！";
+    } else if (score >= 45) {
+      rank = "2級合格";
+      praiseMsg = "すばらしい手際！プロ級のお手入れ！";
+    } else if (score >= 35) {
+      rank = "3級合格";
+      praiseMsg = "かなり素早い！お庭がスッキリ！";
+    } else if (score >= 25) {
+      rank = "4級合格";
+      praiseMsg = "いい調子！もう少しで上級者！";
+    } else if (score >= 15) {
+      rank = "5級合格";
+      praiseMsg = "合格おめでとう！がんばったね！";
+    } else {
+      rank = "不合格";
+      rankDisplayEl.classList.add('failed');
+      praiseMsg = "草を中心に狙ってタップしてみよう！";
+    }
+
+    finalScoreEl.textContent = score;
+    rankDisplayEl.textContent = rank;
+    praiseMsgEl.textContent = praiseMsg;
+
+    characterEl.style.left = '50%';
+    characterEl.style.bottom = '20px';
+
+    resultScreen.classList.remove('hidden');
+  }
+</script>
+
+</body>
+</html>
